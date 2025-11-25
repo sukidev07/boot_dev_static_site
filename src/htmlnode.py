@@ -1,157 +1,53 @@
-class HtmlNode:
-    def __init__(self, tag, attributes=None, children=None, text=''):
+class HTMLNode:
+    def __init__(self, tag=None, value=None, children=None, props=None):
         self.tag = tag
-        self.attributes = attributes if attributes is not None else {}
-        self.children = children if children is not None else []
-        self.text = text
+        self.value = value
+        self.children = children
+        self.props = props
 
-    def add_child(self, child_node):
-        self.children.append(child_node)
+    def to_html(self):
+        raise NotImplementedError("to_html method not implemented")
 
-    def set_attribute(self, key, value):
-        self.attributes[key] = value
+    def props_to_html(self):
+        if self.props is None:
+            return ""
+        props_html = ""
+        for prop in self.props:
+            props_html += f' {prop}="{self.props[prop]}"'
+        return props_html
 
-    def render(self):
-        attr_str = ' '.join(f'{key}="{value}"' for key, value in self.attributes.items())
-        opening_tag = f'<{self.tag} {attr_str}>' if attr_str else f'<{self.tag}>'
-        closing_tag = f'</{self.tag}>'
-        
-        children_str = ''.join(child.render() for child in self.children)
-        
-        return f'{opening_tag}{self.text}{children_str}{closing_tag}'
+    def __repr__(self):
+        return f"HTMLNode({self.tag}, {self.value}, children: {self.children}, {self.props})"
 
-class LeafNode(HtmlNode):
-    def __init__(self, tag, attributes=None, text=''):
-        super().__init__(tag, attributes, children=None, text=text)
 
-    def render(self):
-        attr_str = ' '.join(f'{key}="{value}"' for key, value in self.attributes.items())
-        opening_tag = f'<{self.tag} {attr_str} />' if attr_str else f'<{self.tag} />'
-        return f'{opening_tag}{self.text}'
+class LeafNode(HTMLNode):
+    def __init__(self, tag, value, props=None):
+        super().__init__(tag, value, None, props)
 
-class ParentNode(HtmlNode):
-    def __init__(self, tag, attributes=None, children=None):
-        super().__init__(tag, attributes, children=children, text='')
+    def to_html(self):
+        if self.value is None:
+            raise ValueError("invalid HTML: no value")
+        if self.tag is None:
+            return self.value
+        return f"<{self.tag}{self.props_to_html()}>{self.value}</{self.tag}>"
 
-def text_node_to_html_node(text_node):
-    if text_node.text_type == 'bold':
-        return HtmlNode('strong', text=text_node.text)
-    elif text_node.text_type == 'italic':
-        return HtmlNode('em', text=text_node.text)
-    else:
-        return HtmlNode('span', text=text_node.text)
+    def __repr__(self):
+        return f"LeafNode({self.tag}, {self.value}, {self.props})"
 
-def split_nodes_delimiter(nodes, delimiter):
-    result = []
-    current_group = []
-    
-    for node in nodes:
-        if node.text == delimiter:
-            if current_group:
-                result.append(current_group)
-                current_group = []
-        else:
-            current_group.append(node)
-    
-    if current_group:
-        result.append(current_group)
-    
-    return result   
 
-def extract_markdown_text(nodes):
-    texts = []
-    for node in nodes:
-        if isinstance(node, HtmlNode):
-            texts.append(node.text)
-            texts.extend(extract_markdown_text(node.children))
-    return texts
+class ParentNode(HTMLNode):
+    def __init__(self, tag, children, props=None):
+        super().__init__(tag, None, children, props)
 
-def split_nodes_by_image(old_nodes):
-    result = []
-    current_group = []
-    
-    for node in old_nodes:
-        if node.tag == 'img':
-            if current_group:
-                result.append(current_group)
-                current_group = []
-            result.append([node])
-        else:
-            current_group.append(node)
-    
-    if current_group:
-        result.append(current_group)
-    
-    return result   
+    def to_html(self):
+        if self.tag is None:
+            raise ValueError("invalid HTML: no tag")
+        if self.children is None:
+            raise ValueError("invalid HTML: no children")
+        children_html = ""
+        for child in self.children:
+            children_html += child.to_html()
+        return f"<{self.tag}{self.props_to_html()}>{children_html}</{self.tag}>"
 
-def split_nodes_link(old_nodes):
-    result = []
-    current_group = []
-    
-    for node in old_nodes:
-        if node.tag == 'a':
-            if current_group:
-                result.append(current_group)
-                current_group = []
-            result.append([node])
-        else:
-            current_group.append(node)
-    
-    if current_group:
-        result.append(current_group)
-    
-    return result
-
-def text_to_textnodes(text):
-    return [HtmlNode('span', text=part) for part in text.split()]
-
-def markdown_to_blocks(markdown):
-    lines = markdown.split('\n')
-    blocks = []
-    current_block = []
-    
-    for line in lines:
-        if line.strip() == '':
-            if current_block:
-                blocks.append(current_block)
-                current_block = []
-        else:
-            current_block.append(HtmlNode('p', text=line))
-    
-    if current_block:
-        blocks.append(current_block)
-    
-    return blocks
-
-class BlockType(Enum):
-    PARAGRAPH = "Paragraph"
-    HEADING = "Heading"
-    CODE = "Code"
-    QUOTE = "Quote"
-    UNDERORDERED_LIST = "Unordered List"
-    ORDERED_LIST = "Ordered List"
-
-def block_to_blocktype(block):
-    if block.tag == 'p':
-        return BlockType.PARAGRAPH
-    elif block.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-        return BlockType.HEADING
-    elif block.tag == 'code':
-        return BlockType.CODE
-    elif block.tag == 'blockquote':
-        return BlockType.QUOTE
-    elif block.tag == 'ul':
-        return BlockType.UNDERORDERED_LIST
-    elif block.tag == 'ol':
-        return BlockType.ORDERED_LIST
-    else:
-        return None
-
-def markdown_to_html_nodes(markdown):
-    blocks = markdown_to_blocks(markdown)
-    html_nodes = []
-    for block in blocks:
-        for node in block:
-            html_nodes.append(node)
-    return html_nodes
-
+    def __repr__(self):
+        return f"ParentNode({self.tag}, children: {self.children}, {self.props})"

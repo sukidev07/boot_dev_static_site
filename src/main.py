@@ -1,29 +1,29 @@
 import os
-
 import shutil
 
-# Delete all files and folders in the public directory then copy all files and folders from the static directory to the public directory
-# the function should be recursive and handle nested folders
+from copystatic import copy_files_recursive
+from gencontent import generate_page
+
+dir_path_static = "./static"
+dir_path_public = "./public"
+dir_path_content = "./content"
+template_path = "./template.html"
+
+
 def main():
-    public_dir = "public"
-    static_dir = "static"
+    print("Deleting public directory...")
+    if os.path.exists(dir_path_public):
+        shutil.rmtree(dir_path_public)
 
-    # Delete all files and folders in the public directory
-    if os.path.exists(public_dir):
-        # Remove the public directory and all its contents
-        shutil.rmtree(public_dir)
-    # Recreate the public directory
-    os.makedirs(public_dir, exist_ok=True)
+    print("Copying static files to public directory...")
+    copy_files_recursive(dir_path_static, dir_path_public)
 
-    # Copy all files and folders from the static directory to the public directory recursively
-    if os.path.exists(static_dir):
-        # Copytree requires the destination to not exist, so we copy contents individually
-        for item in os.listdir(static_dir):
-            s = os.path.join(static_dir, item)
-            d = os.path.join(public_dir, item)
-            if os.path.isdir(s):
-                shutil.copytree(s, d)
-            else:
-                shutil.copy2(s, d)
-if __name__ == "__main__":
-    main()
+    print("Generating page...")
+    generate_page(
+        os.path.join(dir_path_content, "index.md"),
+        template_path,
+        os.path.join(dir_path_public, "index.html"),
+    )
+
+
+main()
